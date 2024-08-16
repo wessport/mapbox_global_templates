@@ -1,0 +1,113 @@
+<!-- Include the Mapbox GL JS library and CSS -->
+<script src='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js'></script>
+<link href='https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css' rel='stylesheet'/>
+
+<!-- Include the Turf.js library -->
+<script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
+
+<!-- Create a container for the globe -->
+<div id='map' style='width: 1200px; height: 450px;'></div>
+
+<!-- Create the globe using Mapbox GL JS -->
+<script>
+    let country = 'CR'; // ******CHANGE THE 2-LETTER COUNTRY CODE HERE*******
+    // Initialize the Mapbox GL JS map - token below only works on our wiki space fyi
+    mapboxgl.accessToken = 'pk.eyJ1Ijoid3BvcnRlciIsImEiOiJjbGhpNWNjanIwNGliM2RvdXYyenNxNXNsIn0.vihD5WB3hQMSRWnYJ_V0DA';
+    const map = new mapboxgl.Map({
+        container: 'map',
+        // style: 'mapbox://styles/mapbox/streets-v12',
+        style: 'mapbox://styles/wporter/clhi4anrz00s401pee97qh77x',
+        projection: 'globe',
+        center: [0, 0], // starting position
+        zoom: 0 // starting zoom
+    });
+
+    // Load the GeoJSON data separately and get the center point
+    let labelX, labelY;
+    let countryZoomLevel;
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_usa.geojson')
+        .then(response => response.json())
+        .then(data => {
+            const features = data.features.filter(feature => feature.properties.ISO_A2 === country);
+            if (features.length > 0) {
+                labelX = features[0].properties.LABEL_X;
+                labelY = features[0].properties.LABEL_Y;
+
+                // Calculate bounding box
+                const bbox = turf.bbox(features[0].geometry);
+                const sw = new mapboxgl.LngLat(bbox[0], bbox[1]);
+                const ne = new mapboxgl.LngLat(bbox[2], bbox[3]);
+                const bounds = new mapboxgl.LngLatBounds(sw, ne);
+
+                // Pans and zooms the map viewport
+                map.fitBounds(bounds);
+                countryZoomLevel = map.getZoom();
+                console.log('Fitting map bounds')
+                console.log(countryZoomLevel)
+            }
+        });
+
+    function centerMap() {
+      if (labelX && labelY) {
+          console.log([labelX, labelY])
+          console.log(countryZoomLevel)
+          if (countryZoomLevel < 3) {
+              countryZoomLevel = 3 // set the max zoom level
+          }
+          if (country === 'US') {
+              countryZoomLevel = 3 // override zoom level for US
+          }
+          map.flyTo({
+                center: [labelX, labelY],
+                 zoom: countryZoomLevel,
+                speed: 1.0
+          });
+      } else {
+        // If the labelX and labelY values are not yet available, retry after a short delay
+        console.log("no x-y yet")
+        setTimeout(centerMap, 300);
+      }
+}
+
+    // // Add a Mapbox layer to display the country polygons
+    map.on('load', () => {
+
+        map.addSource('countries', {
+            type: 'geojson',
+            data: 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries_usa.geojson'
+        });
+
+        map.addLayer({
+            id: 'countries-layer',
+            type: 'fill',
+            source: 'countries',
+            // #02b5eb
+            paint: {
+                'fill-color': '#ccc',
+                // 'fill-color': '#02b5eb',
+                'fill-outline-color': '#333',
+                'fill-opacity': 0.5,
+                // 'fill-opacity': 1,
+                'fill-color': [
+                    'case',
+                    ['in', 'ISO_A2', ['get', 'ISO_A2']],
+                    'red',
+                    '#02b5eb'
+                ]
+            },
+            filter: ['in', 'ISO_A2', country] // Specify the ID of the polygon to highlight
+        });
+
+        // Center the map on the label center point
+        console.log([labelX, labelY])
+        console.log('test')
+
+    });
+
+    // Center the map on the label center point
+    console.log([labelX, labelY])
+    console.log('test')
+    centerMap();
+    console.log(countryZoomLevel)
+
+</script>
